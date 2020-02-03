@@ -22,15 +22,29 @@ interface Shrinker<A> {
 
    /**
     * Returns the "next level" of shrinks for the given value, or empty list if a "base case" has been reached.
+    * For example, to shrink an int k we may decide to return k/2 and k-1.
     */
    fun shrink(value: A): List<A>
 }
 
+data class RTree<A>(val value: A, val children: Lazy<RTree<A>>)
+
+data class Step<A>(val candidates: List<A>, val next: (A) -> Step<A>)
+
+fun emptyStep(): Step<Nothing>
+
+val emptyStep: Step<Nothing> = Step(emptyList()) { emptyStep }
+
 /**
- * Generates the shrinks for a given input as a lazily evaluated sequence.
- * It is acceptable for the sequence to include dups.
+ * Generates the next [Step] of shrinks with a function to continue the shrinking process.
  */
-fun <A> Shrinker<A>.shrinks(value: A): Sequence<A> {
-   val shrinks = shrink(value).asSequence()
-   return shrinks + shrinks.flatMap { shrinks(it) }
+fun <A> Shrinker<A>.step(a: A): Step<A> {
+   val candidates = shrink(a)
+   return Step(candidates) { this@step.step(it) }
+}
+
+fun <A> Shrinker<A>.rtree(a: A): RTree<A> {
+   fun rtree(a: A, list: List<A>) = RTree(a, lazy { list.map { rtree(it, shrink(it)) } })
+   val children = lazy { shrink(a) }
+   return RTree(a, children)
 }
